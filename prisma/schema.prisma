@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DeliveryMethod {
+  bank_transfer
+  cash_pickup
+  wallet
+}
+
+enum PaymentMethod {
+  bank_transfer
+  debit_card
+  cash
+}
+
+model Provider {
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  websiteUrl   String?
+  affiliateUrl String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  rateQuotes   RateQuote[]
+}
+
+model Corridor {
+  id              String      @id @default(cuid())
+  sourceCountry   String
+  sourceCurrency  String
+  targetCountry   String
+  targetCurrency  String
+  slug            String      @unique
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  rateQuotes      RateQuote[]
+}
+
+model RateQuote {
+  id             String         @id @default(cuid())
+  providerId     String
+  corridorId     String
+  baseFee        Decimal        @db.Decimal(12, 4)
+  exchangeRate   Decimal        @db.Decimal(18, 8)
+  midMarketRate  Decimal?       @db.Decimal(18, 8)
+  deliveryMethod DeliveryMethod
+  paymentMethod  PaymentMethod
+  timestamp      DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  provider       Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  corridor       Corridor       @relation(fields: [corridorId], references: [id], onDelete: Cascade)
+
+  @@index([corridorId, providerId, timestamp])
+  @@index([providerId, timestamp])
+}
