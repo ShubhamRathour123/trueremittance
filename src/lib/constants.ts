@@ -1,4 +1,4 @@
-export const MVP_CORRIDOR_SLUG = "uae-to-india";
+export const PRODUCTION_CORRIDOR_SLUG = "uae-to-india";
 export const SOURCE_CURRENCY = "AED";
 export const TARGET_CURRENCY = "INR";
 

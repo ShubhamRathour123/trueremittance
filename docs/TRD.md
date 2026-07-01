@@ -1,43 +1,62 @@
-# TrueRemittance MVP TRD
+# TrueRemittance TRD
 
 ## Stack
+
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- PostgreSQL
 - Prisma ORM
-- Vercel deployment target
+- PostgreSQL hosted on Neon in production
+- Vercel deployment
 
-## Runtime Assumptions
-- `DATABASE_URL` points to PostgreSQL.
-- `ADMIN_SECRET` stores the internal admin password.
-- `ADMIN_SESSION_SECRET` signs admin session cookies.
+## Runtime Configuration
+
+Required environment variables:
+
+```text
+DATABASE_URL
+ADMIN_SECRET
+ADMIN_SESSION_SECRET
+```
+
+`DATABASE_URL` points to PostgreSQL. `ADMIN_SECRET` is the internal admin password. `ADMIN_SESSION_SECRET` signs the HTTP-only admin session cookie.
 
 ## Data Model
+
 Core entities:
+
 - `Provider`
 - `Corridor`
 - `RateQuote`
 
-`RateQuote` snapshots are immutable records for historical accuracy. Updating a provider's rate creates a new quote row rather than overwriting previous quote data.
+`Provider` stores remittance company details, public URLs, optional affiliate URLs, and active status.
+
+`Corridor` stores the supported transfer route. The current production corridor is UAE to India, using AED as source currency and INR as target currency.
+
+`RateQuote` stores timestamped quote snapshots. New rate entries create new rows instead of overwriting previous quote records.
 
 ## Admin Auth
-MVP admin auth is a minimal password gate:
-- Admin submits password on `/admin/login`.
-- Server compares it with `ADMIN_SECRET`.
-- Server issues an HTTP-only signed session cookie.
-- `/admin` pages and `/api/admin/*` endpoints validate the cookie server-side.
 
-No user table, OAuth, or NextAuth is used in MVP.
+Admin authentication is intentionally small for this project:
+
+- Admin submits the password on `/admin/login`.
+- Server compares the submitted value with `ADMIN_SECRET`.
+- Server issues an HTTP-only signed session cookie.
+- `/admin` and `/api/admin/*` validate the session server-side.
+
+There is no user table, OAuth provider, or NextAuth dependency in the current implementation.
 
 ## Comparison Logic
-Inputs:
-- Send amount in AED
-- Corridor, fixed to UAE to India for MVP
 
-Outputs:
-- Provider ranking by recipient amount
-- Fee, FX rate, delivery method, payment method, hidden margin if mid-market rate is present
+Input:
+
+- Send amount in AED
+- Fixed production corridor: UAE to India
+
+Output:
+
+- Ranked provider results
+- Base fee, FX rate, delivery method, payment method, hidden margin when mid-market rate exists, and timestamp
 
 Formula:
 
@@ -46,16 +65,22 @@ recipientAmount = (sendAmount - baseFee) * exchangeRate
 ```
 
 Validation:
-- Send amount must be positive.
-- Quotes with a fee greater than or equal to send amount are excluded from ranking.
-- Provider quotes must belong to the selected corridor.
 
-## Security Constraints
-- `ADMIN_SECRET` is never exposed to client components.
-- Admin cookies are HTTP-only, same-site strict, and secure in production.
-- Public routes cannot mutate quote data.
+- Send amount must be positive.
+- Quotes with fees greater than or equal to the send amount are excluded.
+- Only active providers are shown.
+- Only the latest quote per active provider is used for public ranking.
+
+## Error Handling
+
+- Empty database state returns empty public results instead of throwing.
+- Missing corridor data disables quote creation in the admin dashboard.
+- Invalid admin form submissions redirect back to `/admin` with a status message.
+- Public routes do not expose environment secrets or stack traces.
 
 ## Deployment Notes
-- Run Prisma migrations against PostgreSQL before deployment.
-- Configure `DATABASE_URL`, `ADMIN_SECRET`, and `ADMIN_SESSION_SECRET` in Vercel.
-- Seed static corridor and provider records before entering production rates.
+
+- Production is deployed on Vercel at https://trueremittance.vercel.app/.
+- Production database is PostgreSQL on Neon.
+- Run committed Prisma migrations before production deployment.
+- Seed the UAE to India corridor and provider records before adding production rate snapshots.

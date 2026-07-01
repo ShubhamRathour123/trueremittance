@@ -9,12 +9,39 @@ import { isAdminAuthenticated } from "@/lib/admin-auth";
 const deliveryMethods = ["bank_transfer", "cash_pickup", "wallet"] as const;
 const paymentMethods = ["bank_transfer", "debit_card", "cash"] as const;
 
-export default async function AdminPage(): Promise<React.ReactElement> {
+type AdminPageProps = {
+  searchParams: Promise<{
+    status?: string;
+  }>;
+};
+
+function getStatusMessage(status: string | undefined): string | null {
+  if (status === "invalid-provider") {
+    return "Provider details were not saved. Check the name, slug, and URLs.";
+  }
+
+  if (status === "invalid-quote") {
+    return "Rate snapshot was not saved. Check the provider, corridor, fee, FX rate, and methods.";
+  }
+
+  if (status === "save-failed") {
+    return "The admin change could not be saved. Check the database connection and try again.";
+  }
+
+  return null;
+}
+
+export default async function AdminPage(props: AdminPageProps): Promise<React.ReactElement> {
   if (!(await isAdminAuthenticated())) {
     redirect("/admin/login");
   }
 
-  const { providers, corridorId, latestQuotes } = await getAdminDashboardData();
+  const [{ status }, { providers, corridorId, latestQuotes, errorMessage }] = await Promise.all([
+    props.searchParams,
+    getAdminDashboardData()
+  ]);
+  const statusMessage = getStatusMessage(status) ?? errorMessage;
+  const canCreateQuote = Boolean(corridorId) && providers.length > 0;
 
   return (
     <main className="min-h-screen bg-paper">
@@ -35,6 +62,10 @@ export default async function AdminPage(): Promise<React.ReactElement> {
             </button>
           </form>
         </div>
+
+        {statusMessage ? (
+          <p className="mt-6 rounded-md bg-amber-50 p-3 text-sm font-medium text-amber-800">{statusMessage}</p>
+        ) : null}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <form action="/api/admin/providers" method="post" className="rounded-lg border border-line bg-white p-5 shadow-sm">
@@ -63,10 +94,20 @@ export default async function AdminPage(): Promise<React.ReactElement> {
                 Seed the UAE to India corridor before adding quotes.
               </p>
             ) : null}
+            {corridorId && providers.length === 0 ? (
+              <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm font-medium text-amber-800">
+                Add at least one provider before saving quote snapshots.
+              </p>
+            ) : null}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 sm:col-span-2">
                 <span className="text-sm font-medium text-slate-600">Provider</span>
-                <select name="providerId" required className="rounded-md border border-line px-3 py-3 outline-none">
+                <select
+                  name="providerId"
+                  required
+                  disabled={providers.length === 0}
+                  className="rounded-md border border-line px-3 py-3 outline-none disabled:cursor-not-allowed disabled:bg-slate-50"
+                >
                   {providers.map((provider) => (
                     <option key={provider.id} value={provider.id}>
                       {provider.name}
@@ -112,7 +153,7 @@ export default async function AdminPage(): Promise<React.ReactElement> {
                 </select>
               </label>
               <button
-                disabled={!corridorId}
+                disabled={!canCreateQuote}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
               >
                 <Save aria-hidden="true" size={17} />

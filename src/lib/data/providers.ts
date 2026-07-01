@@ -1,5 +1,5 @@
 import type { DeliveryMethod, PaymentMethod } from "@prisma/client";
-import { MVP_CORRIDOR_SLUG } from "@/lib/constants";
+import { PRODUCTION_CORRIDOR_SLUG } from "@/lib/constants";
 import type { QuoteForComparison } from "@/lib/comparison/types";
 import { prisma } from "@/lib/prisma";
 
@@ -24,49 +24,54 @@ export type AdminQuoteSummary = {
 };
 
 export async function getLatestQuotesForMvpCorridor(): Promise<QuoteForComparison[]> {
-  const corridor = await prisma.corridor.findUnique({
-    where: { slug: MVP_CORRIDOR_SLUG },
-    select: { id: true, isActive: true }
-  });
+  try {
+    const corridor = await prisma.corridor.findUnique({
+      where: { slug: PRODUCTION_CORRIDOR_SLUG },
+      select: { id: true, isActive: true }
+    });
 
-  if (!corridor?.isActive) {
+    if (!corridor?.isActive) {
+      return [];
+    }
+
+    const quotes = await prisma.rateQuote.findMany({
+      where: {
+        corridorId: corridor.id,
+        provider: { isActive: true }
+      },
+      include: {
+        provider: true
+      },
+      orderBy: {
+        timestamp: "desc"
+      }
+    });
+
+    const latestByProvider = new Map<string, QuoteForComparison>();
+
+    for (const quote of quotes) {
+      if (latestByProvider.has(quote.providerId)) {
+        continue;
+      }
+
+      latestByProvider.set(quote.providerId, {
+        providerId: quote.providerId,
+        providerName: quote.provider.name,
+        providerSlug: quote.provider.slug,
+        baseFee: quote.baseFee.toNumber(),
+        exchangeRate: quote.exchangeRate.toNumber(),
+        midMarketRate: quote.midMarketRate?.toNumber() ?? null,
+        deliveryMethod: quote.deliveryMethod,
+        paymentMethod: quote.paymentMethod,
+        timestamp: quote.timestamp
+      });
+    }
+
+    return Array.from(latestByProvider.values());
+  } catch (error) {
+    console.error("Unable to load comparison quotes", error);
     return [];
   }
-
-  const quotes = await prisma.rateQuote.findMany({
-    where: {
-      corridorId: corridor.id,
-      provider: { isActive: true }
-    },
-    include: {
-      provider: true
-    },
-    orderBy: {
-      timestamp: "desc"
-    }
-  });
-
-  const latestByProvider = new Map<string, QuoteForComparison>();
-
-  for (const quote of quotes) {
-    if (latestByProvider.has(quote.providerId)) {
-      continue;
-    }
-
-    latestByProvider.set(quote.providerId, {
-      providerId: quote.providerId,
-      providerName: quote.provider.name,
-      providerSlug: quote.provider.slug,
-      baseFee: quote.baseFee.toNumber(),
-      exchangeRate: quote.exchangeRate.toNumber(),
-      midMarketRate: quote.midMarketRate?.toNumber() ?? null,
-      deliveryMethod: quote.deliveryMethod,
-      paymentMethod: quote.paymentMethod,
-      timestamp: quote.timestamp
-    });
-  }
-
-  return Array.from(latestByProvider.values());
 }
 
 export async function getProviderForRedirect(slug: string): Promise<ProviderSummary | null> {
@@ -87,54 +92,68 @@ export async function getAdminDashboardData(): Promise<{
   providers: ProviderSummary[];
   corridorId: string | null;
   latestQuotes: AdminQuoteSummary[];
+  errorMessage: string | null;
 }> {
-  const [providers, corridor] = await Promise.all([
-    prisma.provider.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        websiteUrl: true,
-        affiliateUrl: true,
-        isActive: true
-      }
-    }),
-    prisma.corridor.findUnique({
-      where: { slug: MVP_CORRIDOR_SLUG },
-      select: { id: true }
-    })
-  ]);
+  try {
+    const [providers, corridor] = await Promise.all([
+      prisma.provider.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          websiteUrl: true,
+          affiliateUrl: true,
+          isActive: true
+        }
+      }),
+      prisma.corridor.findUnique({
+        where: { slug: PRODUCTION_CORRIDOR_SLUG },
+        select: { id: true }
+      })
+    ]);
 
-  if (!corridor) {
+    if (!corridor) {
+      return {
+        providers,
+        corridorId: null,
+        latestQuotes: [],
+        errorMessage: null
+      };
+    }
+
+    const quotes = await prisma.rateQuote.findMany({
+      where: {
+        corridorId: corridor.id
+      },
+      include: { provider: true },
+      orderBy: { timestamp: "desc" },
+      take: 20
+    });
+
     return {
       providers,
+      corridorId: corridor.id,
+      latestQuotes: quotes.map((quote) => ({
+        id: quote.id,
+        providerName: quote.provider.name,
+        baseFee: quote.baseFee.toNumber(),
+        exchangeRate: quote.exchangeRate.toNumber(),
+        midMarketRate: quote.midMarketRate?.toNumber() ?? null,
+        deliveryMethod: quote.deliveryMethod,
+        paymentMethod: quote.paymentMethod,
+        timestamp: quote.timestamp
+      })),
+      errorMessage: null
+    };
+  } catch (error) {
+    console.error("Unable to load admin dashboard data", error);
+
+    return {
+      providers: [],
       corridorId: null,
-      latestQuotes: []
+      latestQuotes: [],
+      errorMessage: "Admin data could not be loaded. Check the database connection and required seed data."
     };
   }
-
-  const quotes = await prisma.rateQuote.findMany({
-    where: {
-      corridorId: corridor.id
-    },
-    include: { provider: true },
-    orderBy: { timestamp: "desc" },
-    take: 20
-  });
-
-  return {
-    providers,
-    corridorId: corridor.id,
-    latestQuotes: quotes.map((quote) => ({
-      id: quote.id,
-      providerName: quote.provider.name,
-      baseFee: quote.baseFee.toNumber(),
-      exchangeRate: quote.exchangeRate.toNumber(),
-      midMarketRate: quote.midMarketRate?.toNumber() ?? null,
-      deliveryMethod: quote.deliveryMethod,
-      paymentMethod: quote.paymentMethod,
-      timestamp: quote.timestamp
-    }))
-  };
 }

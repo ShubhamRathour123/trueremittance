@@ -1,42 +1,42 @@
-# TrueRemittance MVP PRD
+# TrueRemittance PRD
 
-## Mission
-TrueRemittance helps users compare remittance providers and choose the option that maximizes the recipient amount for international transfers.
+## Product Context
 
-## MVP Corridor
-- Origin: United Arab Emirates
-- Destination: India
+TrueRemittance is a production remittance comparison platform for the UAE to India corridor, deployed at https://trueremittance.vercel.app/.
+
+The product helps a sender compare providers by the final INR amount received, not only by advertised exchange rate. This matters because remittance value depends on both provider fee and FX rate.
+
+## Corridor
+
+- Origin country: United Arab Emirates
+- Destination country: India
 - Send currency: AED
 - Receive currency: INR
 
-## MVP Providers
-The MVP includes only these providers:
-- Wise
-- Western Union
-- MoneyGram
-- Remitly
-- LuLu Exchange
-- Al Ansari Exchange
-- Emirates NBD
-- ICICI Bank
-- Xpress Money, only if manually maintained data is available
+## Providers
 
-Total providers must not exceed 10 in MVP.
+The production data model supports active and inactive providers. Seed data includes common UAE to India remittance providers such as Wise, Western Union, MoneyGram, Remitly, LuLu Exchange, Al Ansari Exchange, Emirates NBD, ICICI Bank, and Xpress Money.
+
+Only active providers with a current quote for the UAE to India corridor are shown in comparison results.
 
 ## User Goal
-A sender enters an AED amount and immediately sees ranked provider options ordered by highest recipient amount in INR.
+
+A sender enters an AED amount and sees providers ranked by highest estimated INR payout.
 
 ## Ranking Rule
+
 Recipient amount is calculated as:
 
 ```text
 recipientAmount = (sendAmount - baseFee) * exchangeRate
 ```
 
-Providers are sorted descending by `recipientAmount`.
+Providers are sorted from highest to lowest `recipientAmount`. Quotes with a fee greater than or equal to the send amount are excluded.
 
 ## Quote Fields
-Each manually entered quote must include:
+
+Each admin-entered quote includes:
+
 - Base fee in AED
 - Provider exchange rate
 - Delivery method: `bank_transfer`, `cash_pickup`, or `wallet`
@@ -45,23 +45,28 @@ Each manually entered quote must include:
 - Optional mid-market rate for hidden margin display
 
 ## Admin Requirements
-MVP rates are manually managed only.
+
+Rates are managed manually through the protected admin dashboard.
 
 Admin users can:
-- Create and update providers
-- Add corridor pricing for UAE to India
-- Enter fee and exchange rate per provider
-- Save timestamped quote snapshots
 
-## Out of Scope
+- Create or update providers
+- Mark providers active or inactive
+- Add timestamped rate snapshots for the UAE to India corridor
+- Maintain fee, FX rate, delivery method, and payment method details
+
+## Production Constraints
+
+- The platform does not claim automated live provider feeds.
+- Public users cannot mutate provider or quote data.
+- Admin routes require server-side session validation.
+- The UI must handle empty provider or quote data without crashing.
+
+## Out Of Scope
+
 - Provider API integrations
 - Scraping
-- Full user authentication
-- Multi-corridor support
-- Complex tiered or promotional fee modeling
+- User accounts
+- Multi-corridor comparison
+- Tiered promotional fee modeling
 - Compliance workflows
-
-## Trust Requirements
-- Do not show fabricated live-rate claims.
-- Clearly show fee, exchange rate, and last updated time.
-- Protect admin routes with server-side authentication.
