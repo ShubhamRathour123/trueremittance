@@ -16,8 +16,11 @@ TrueRemittance is a production remittance comparison platform for the UAE to Ind
 - Provider ranking by highest recipient payout
 - Transparent fee and exchange-rate breakdown
 - Timestamped rate snapshots
+- Quote freshness and source transparency
 - Protected admin dashboard for manual rate management
 - Affiliate/provider redirect route
+- Affiliate click tracking foundation
+- Trust, methodology, sitemap, and robots routes
 - PostgreSQL data model managed with Prisma
 - Vercel-ready Next.js App Router application
 
@@ -46,7 +49,50 @@ TrueRemittance keeps the database as the single source of truth for provider rat
 Recipient Amount = (Send Amount - Fee) x Exchange Rate
 ```
 
-The admin dashboard creates and updates provider records and quote snapshots. No exchange rates or fees are hardcoded in React components.
+The admin dashboard creates provider records and timestamped quote snapshots. No exchange rates or fees are hardcoded in React components.
+
+Quotes are normalized before ranking so future manual, API, scraper, or partner-feed sources can share the same comparison engine.
+
+## Quote Model
+
+Each quote can store:
+
+- Provider and corridor
+- Send and receive currencies
+- Send amount assumption
+- Fee and fee currency
+- Exchange rate
+- Optional mid-market rate
+- Delivery method and payment method
+- Optional delivery speed
+- Source type: `MANUAL`, `API`, `SCRAPER`, `PARTNER_FEED`, or `OTHER`
+- Verification status
+- Promotion flag and expiry
+- Minimum and maximum amount
+- Notes, status message, metadata, quote timestamp, and fetched timestamp
+
+## Ranking and Freshness Logic
+
+Default ranking is based on estimated recipient payout:
+
+```text
+recipient amount = (send amount - fee) x exchange rate
+```
+
+Additional calculated values:
+
+- Effective rate: `recipient amount / send amount`
+- FX spread: `(mid-market rate - provider rate) / mid-market rate`
+- Difference from next best provider
+
+Quote freshness thresholds:
+
+- Fresh: less than 10 minutes old
+- Recent: 10-30 minutes old
+- Aging: 30-60 minutes old
+- Stale: more than 60 minutes old
+
+Stale quotes are ranked below fresher quotes. Missing values are shown as unavailable instead of being estimated.
 
 ## Folder Structure
 
@@ -93,10 +139,16 @@ Never commit real `.env` values.
 
 ## Database Setup
 
-Run Prisma migrations against your PostgreSQL database:
+Run Prisma migrations against your PostgreSQL database during local development:
 
 ```bash
 npx prisma migrate dev
+```
+
+For production deployment, use:
+
+```bash
+npx prisma migrate deploy
 ```
 
 Generate the Prisma client:
@@ -155,8 +207,29 @@ Rates are managed manually from the admin dashboard. Each quote stores:
 - Payment method
 - Timestamp
 - Optional mid-market rate
+- Source type
+- Verification status
+- Optional delivery speed, amount limits, and notes
 
 The homepage, ranking engine, comparison cards, and calculator all use the latest database quote per provider.
+
+## Affiliate Redirects
+
+Provider CTAs go through the controlled `/redirect/[providerSlug]` route. The destination URL is loaded from server-side provider configuration, and clicks are recorded without collecting recipient or bank details.
+
+Provider affiliate URLs are stored in the `Provider.affiliateUrl` database field and can be managed from the admin dashboard. When `affiliateUrl` is present, `/redirect/[providerSlug]` uses it; otherwise the route checks the server-side provider affiliate config and then falls back to `Provider.websiteUrl`.
+
+The Remitly referral URL is configured once in `src/lib/provider-affiliates.ts`. The seed script uses that value as the seeded `affiliateUrl` for the `remitly` provider, and the redirect route uses it as a server-side fallback when an existing database row has no `affiliateUrl`. To change it later, update the provider from the admin dashboard or adjust `src/lib/provider-affiliates.ts`. Do not place affiliate URLs directly in React components.
+
+## Future Provider Integrations
+
+Future provider integrations should plug in before the normalized quote layer:
+
+```text
+Manual/API/Scraper/Partner Feed -> normalized quote -> validation -> comparison engine -> ranking
+```
+
+The comparison engine should not need provider-specific logic.
 
 ## Future Roadmap
 

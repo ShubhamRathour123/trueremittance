@@ -8,6 +8,12 @@ export function SiteHeader(): React.ReactElement {
           TrueRemittance
         </Link>
         <nav className="flex items-center gap-4 text-sm text-slate-600">
+          <Link href="/methodology" className="rounded-md px-3 py-2 transition hover:bg-slate-100 hover:text-ink">
+            How we rank
+          </Link>
+          <Link href="/trust" className="rounded-md px-3 py-2 transition hover:bg-slate-100 hover:text-ink">
+            Trust
+          </Link>
           <Link href="/admin/login" className="rounded-md px-3 py-2 transition hover:bg-slate-100 hover:text-ink">
             Admin
           </Link>

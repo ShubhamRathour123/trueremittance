@@ -19,6 +19,21 @@ enum PaymentMethod {
   cash
 }
 
+enum QuoteSourceType {
+  MANUAL
+  API
+  SCRAPER
+  PARTNER_FEED
+  OTHER
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  MANUAL_REVIEWED
+  PROVIDER_QUOTE
+  FAILED
+}
+
 model Provider {
   id           String      @id @default(cuid())
   name         String
@@ -29,6 +44,7 @@ model Provider {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   rateQuotes   RateQuote[]
+  clicks       AffiliateClick[]
 }
 
 model Corridor {
@@ -45,19 +61,53 @@ model Corridor {
 }
 
 model RateQuote {
-  id             String         @id @default(cuid())
-  providerId     String
-  corridorId     String
-  baseFee        Decimal        @db.Decimal(12, 4)
-  exchangeRate   Decimal        @db.Decimal(18, 8)
-  midMarketRate  Decimal?       @db.Decimal(18, 8)
-  deliveryMethod DeliveryMethod
-  paymentMethod  PaymentMethod
-  timestamp      DateTime       @default(now())
-  createdAt      DateTime       @default(now())
-  provider       Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  corridor       Corridor       @relation(fields: [corridorId], references: [id], onDelete: Cascade)
+  id                 String             @id @default(cuid())
+  providerId         String
+  corridorId         String
+  sendAmount         Decimal?           @db.Decimal(12, 4)
+  sendCurrency       String             @default("AED")
+  receiveCurrency    String             @default("INR")
+  baseFee            Decimal            @db.Decimal(12, 4)
+  feeCurrency        String             @default("AED")
+  exchangeRate       Decimal            @db.Decimal(18, 8)
+  midMarketRate      Decimal?           @db.Decimal(18, 8)
+  deliveryMethod     DeliveryMethod
+  paymentMethod      PaymentMethod
+  deliverySpeed      String?
+  sourceType         QuoteSourceType    @default(MANUAL)
+  sourceReference    String?
+  verificationStatus VerificationStatus @default(MANUAL_REVIEWED)
+  isPromotional      Boolean            @default(false)
+  promotionExpiresAt DateTime?
+  minimumAmount      Decimal?           @db.Decimal(12, 4)
+  maximumAmount      Decimal?           @db.Decimal(12, 4)
+  notes              String?
+  statusMessage      String?
+  metadata           Json?
+  fetchedAt          DateTime?
+  timestamp          DateTime           @default(now())
+  createdAt          DateTime           @default(now())
+  provider           Provider           @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  corridor           Corridor           @relation(fields: [corridorId], references: [id], onDelete: Cascade)
 
   @@index([corridorId, providerId, timestamp])
   @@index([providerId, timestamp])
+  @@index([corridorId, timestamp])
+  @@index([sourceType, verificationStatus])
+}
+
+model AffiliateClick {
+  id            String   @id @default(cuid())
+  providerId    String
+  corridorSlug  String?
+  amountBucket  String?
+  placement     String?
+  ranking       Int?
+  ctaType       String?
+  destination   String
+  clickedAt     DateTime @default(now())
+  provider      Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, clickedAt])
+  @@index([corridorSlug, clickedAt])
 }

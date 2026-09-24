@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { assertSameOrigin, isAdminAuthenticated } from "@/lib/admin-auth";
 import { parseProviderForm } from "@/lib/admin-validation";
 import { prisma } from "@/lib/prisma";
 
@@ -9,6 +9,8 @@ function optionalString(value: string | undefined): string | null {
 }
 
 export async function POST(request: Request): Promise<never> {
+  assertSameOrigin(request);
+
   if (!(await isAdminAuthenticated())) {
     redirect("/admin/login");
   }

@@ -1,7 +1,9 @@
-import type { DeliveryMethod, PaymentMethod } from "@prisma/client";
+import type { DeliveryMethod, PaymentMethod, QuoteSourceType, VerificationStatus } from "@prisma/client";
 
 const deliveryMethods = ["bank_transfer", "cash_pickup", "wallet"] as const;
 const paymentMethods = ["bank_transfer", "debit_card", "cash"] as const;
+const quoteSourceTypes = ["MANUAL", "API", "SCRAPER", "PARTNER_FEED", "OTHER"] as const;
+const verificationStatuses = ["UNVERIFIED", "MANUAL_REVIEWED", "PROVIDER_QUOTE", "FAILED"] as const;
 
 type ProviderFormInput = {
   name: FormDataEntryValue | null;
@@ -25,6 +27,15 @@ type QuoteFormInput = {
   baseFee: FormDataEntryValue | null;
   exchangeRate: FormDataEntryValue | null;
   midMarketRate: FormDataEntryValue | null;
+  sendAmount: FormDataEntryValue | null;
+  deliverySpeed: FormDataEntryValue | null;
+  sourceType: FormDataEntryValue | null;
+  sourceReference: FormDataEntryValue | null;
+  verificationStatus: FormDataEntryValue | null;
+  isPromotional: boolean;
+  minimumAmount: FormDataEntryValue | null;
+  maximumAmount: FormDataEntryValue | null;
+  notes: FormDataEntryValue | null;
   deliveryMethod: FormDataEntryValue | null;
   paymentMethod: FormDataEntryValue | null;
 };
@@ -35,6 +46,15 @@ export type ParsedQuoteForm = {
   baseFee: number;
   exchangeRate: number;
   midMarketRate: number | null;
+  sendAmount: number | null;
+  deliverySpeed: string | null;
+  sourceType: QuoteSourceType;
+  sourceReference: string | null;
+  verificationStatus: VerificationStatus;
+  isPromotional: boolean;
+  minimumAmount: number | null;
+  maximumAmount: number | null;
+  notes: string | null;
   deliveryMethod: DeliveryMethod;
   paymentMethod: PaymentMethod;
 };
@@ -65,6 +85,16 @@ function readOptionalUrl(value: FormDataEntryValue | null, fieldName: string): s
   } catch {
     throw new Error(`${fieldName} must be a valid URL.`);
   }
+}
+
+function readOptionalString(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function readNumber(value: FormDataEntryValue | null, fieldName: string, minimum: number): number {
@@ -106,6 +136,26 @@ function readPaymentMethod(value: FormDataEntryValue | null): PaymentMethod {
   return method as PaymentMethod;
 }
 
+function readQuoteSourceType(value: FormDataEntryValue | null): QuoteSourceType {
+  const sourceType = readOptionalString(value) ?? "MANUAL";
+
+  if (!quoteSourceTypes.includes(sourceType as QuoteSourceType)) {
+    throw new Error("Quote source type is invalid.");
+  }
+
+  return sourceType as QuoteSourceType;
+}
+
+function readVerificationStatus(value: FormDataEntryValue | null): VerificationStatus {
+  const status = readOptionalString(value) ?? "MANUAL_REVIEWED";
+
+  if (!verificationStatuses.includes(status as VerificationStatus)) {
+    throw new Error("Verification status is invalid.");
+  }
+
+  return status as VerificationStatus;
+}
+
 export function parseProviderForm(input: ProviderFormInput): ParsedProviderForm {
   const name = readString(input.name, "Provider name");
   const slug = readString(input.slug, "Provider slug");
@@ -124,13 +174,28 @@ export function parseProviderForm(input: ProviderFormInput): ParsedProviderForm 
 }
 
 export function parseQuoteForm(input: QuoteFormInput): ParsedQuoteForm {
-  return {
+  const parsed: ParsedQuoteForm = {
     providerId: readString(input.providerId, "Provider"),
     corridorId: readString(input.corridorId, "Corridor"),
     baseFee: readNumber(input.baseFee, "Base fee", 0),
     exchangeRate: readNumber(input.exchangeRate, "Exchange rate", Number.MIN_VALUE),
     midMarketRate: readOptionalPositiveNumber(input.midMarketRate, "Mid-market rate"),
+    sendAmount: readOptionalPositiveNumber(input.sendAmount, "Send amount"),
+    deliverySpeed: readOptionalString(input.deliverySpeed),
+    sourceType: readQuoteSourceType(input.sourceType),
+    sourceReference: readOptionalString(input.sourceReference),
+    verificationStatus: readVerificationStatus(input.verificationStatus),
+    isPromotional: input.isPromotional,
+    minimumAmount: readOptionalPositiveNumber(input.minimumAmount, "Minimum amount"),
+    maximumAmount: readOptionalPositiveNumber(input.maximumAmount, "Maximum amount"),
+    notes: readOptionalString(input.notes),
     deliveryMethod: readDeliveryMethod(input.deliveryMethod),
     paymentMethod: readPaymentMethod(input.paymentMethod)
   };
+
+  if (parsed.minimumAmount !== null && parsed.maximumAmount !== null && parsed.minimumAmount > parsed.maximumAmount) {
+    throw new Error("Minimum amount cannot be greater than maximum amount.");
+  }
+
+  return parsed;
 }

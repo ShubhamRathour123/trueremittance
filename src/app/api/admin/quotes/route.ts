@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { assertSameOrigin, isAdminAuthenticated } from "@/lib/admin-auth";
 import { parseQuoteForm } from "@/lib/admin-validation";
 import { getAdminDashboardData } from "@/lib/data/providers";
 import { prisma } from "@/lib/prisma";
@@ -22,6 +22,8 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(request: Request): Promise<never> {
+  assertSameOrigin(request);
+
   if (!(await isAdminAuthenticated())) {
     redirect("/admin/login");
   }
@@ -34,6 +36,15 @@ export async function POST(request: Request): Promise<never> {
       baseFee: formData.get("baseFee"),
       exchangeRate: formData.get("exchangeRate"),
       midMarketRate: formData.get("midMarketRate"),
+      sendAmount: formData.get("sendAmount"),
+      deliverySpeed: formData.get("deliverySpeed"),
+      sourceType: formData.get("sourceType"),
+      sourceReference: formData.get("sourceReference"),
+      verificationStatus: formData.get("verificationStatus"),
+      isPromotional: formData.get("isPromotional") === "on",
+      minimumAmount: formData.get("minimumAmount"),
+      maximumAmount: formData.get("maximumAmount"),
+      notes: formData.get("notes"),
       deliveryMethod: formData.get("deliveryMethod"),
       paymentMethod: formData.get("paymentMethod")
     });
@@ -51,11 +62,21 @@ export async function POST(request: Request): Promise<never> {
       data: {
         providerId: parsed.providerId,
         corridorId: parsed.corridorId,
+        sendAmount: parsed.sendAmount,
         baseFee: parsed.baseFee,
         exchangeRate: parsed.exchangeRate,
         midMarketRate: parsed.midMarketRate,
         deliveryMethod: parsed.deliveryMethod,
         paymentMethod: parsed.paymentMethod,
+        deliverySpeed: parsed.deliverySpeed,
+        sourceType: parsed.sourceType,
+        sourceReference: parsed.sourceReference,
+        verificationStatus: parsed.verificationStatus,
+        isPromotional: parsed.isPromotional,
+        minimumAmount: parsed.minimumAmount,
+        maximumAmount: parsed.maximumAmount,
+        notes: parsed.notes,
+        fetchedAt: new Date(),
         timestamp: new Date()
       }
     });

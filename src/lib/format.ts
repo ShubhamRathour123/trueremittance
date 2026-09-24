@@ -24,3 +24,25 @@ export function formatDateTime(value: Date): string {
 export function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`;
 }
+
+export function formatRelativeAge(minutes: number): string {
+  if (minutes < 1) {
+    return "Updated just now";
+  }
+
+  if (minutes === 1) {
+    return "Updated 1 minute ago";
+  }
+
+  if (minutes < 60) {
+    return `Updated ${minutes} minutes ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours === 1) {
+    return "Updated 1 hour ago";
+  }
+
+  return `Updated ${hours} hours ago`;
+}

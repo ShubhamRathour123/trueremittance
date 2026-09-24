@@ -1,17 +1,18 @@
 import { PrismaClient } from "@prisma/client";
+import { getConfiguredAffiliateUrl } from "../src/lib/provider-affiliates";
 
 const prisma = new PrismaClient();
 
 const providers = [
-  { name: "Wise", slug: "wise", websiteUrl: "https://wise.com", isActive: true },
-  { name: "Western Union", slug: "western-union", websiteUrl: "https://www.westernunion.com", isActive: true },
-  { name: "MoneyGram", slug: "moneygram", websiteUrl: "https://www.moneygram.com", isActive: true },
-  { name: "Remitly", slug: "remitly", websiteUrl: "https://www.remitly.com", isActive: true },
-  { name: "LuLu Exchange", slug: "lulu-exchange", websiteUrl: "https://www.luluexchange.com", isActive: true },
-  { name: "Al Ansari Exchange", slug: "al-ansari-exchange", websiteUrl: "https://alansariexchange.com", isActive: true },
-  { name: "Emirates NBD", slug: "emirates-nbd", websiteUrl: "https://www.emiratesnbd.com", isActive: true },
-  { name: "ICICI Bank", slug: "icici-bank", websiteUrl: "https://www.icicibank.com", isActive: true },
-  { name: "Xpress Money", slug: "xpress-money", websiteUrl: "https://www.xpressmoney.com", isActive: true }
+  { name: "Wise", slug: "wise", websiteUrl: "https://wise.com", affiliateUrl: null, isActive: true },
+  { name: "Western Union", slug: "western-union", websiteUrl: "https://www.westernunion.com", affiliateUrl: null, isActive: true },
+  { name: "MoneyGram", slug: "moneygram", websiteUrl: "https://www.moneygram.com", affiliateUrl: null, isActive: true },
+  { name: "Remitly", slug: "remitly", websiteUrl: "https://www.remitly.com", affiliateUrl: getConfiguredAffiliateUrl("remitly"), isActive: true },
+  { name: "LuLu Exchange", slug: "lulu-exchange", websiteUrl: "https://www.luluexchange.com", affiliateUrl: null, isActive: true },
+  { name: "Al Ansari Exchange", slug: "al-ansari-exchange", websiteUrl: "https://alansariexchange.com", affiliateUrl: null, isActive: true },
+  { name: "Emirates NBD", slug: "emirates-nbd", websiteUrl: "https://www.emiratesnbd.com", affiliateUrl: null, isActive: true },
+  { name: "ICICI Bank", slug: "icici-bank", websiteUrl: "https://www.icicibank.com", affiliateUrl: null, isActive: true },
+  { name: "Xpress Money", slug: "xpress-money", websiteUrl: "https://www.xpressmoney.com", affiliateUrl: null, isActive: true }
 ];
 
 const productionQuotes = [
@@ -51,14 +52,14 @@ async function main(): Promise<void> {
       update: {
         name: provider.name,
         websiteUrl: provider.websiteUrl,
-        affiliateUrl: null,
+        affiliateUrl: provider.affiliateUrl,
         isActive: provider.isActive
       },
       create: {
         name: provider.name,
         slug: provider.slug,
         websiteUrl: provider.websiteUrl,
-        affiliateUrl: null,
+        affiliateUrl: provider.affiliateUrl,
         isActive: provider.isActive
       }
     });
@@ -83,11 +84,21 @@ async function main(): Promise<void> {
       }
     });
     const rateData = {
+      sendAmount: 1000,
+      sendCurrency: "AED",
+      receiveCurrency: "INR",
       baseFee: quote.baseFee,
+      feeCurrency: "AED",
       exchangeRate: quote.exchangeRate,
       midMarketRate: latestQuote?.midMarketRate ?? null,
       deliveryMethod: latestQuote?.deliveryMethod ?? "bank_transfer",
       paymentMethod: latestQuote?.paymentMethod ?? "bank_transfer",
+      deliverySpeed: null,
+      sourceType: "MANUAL",
+      sourceReference: "Seeded manual MVP quote",
+      verificationStatus: "MANUAL_REVIEWED",
+      isPromotional: false,
+      fetchedAt: new Date(),
       timestamp: new Date()
     } as const;
 

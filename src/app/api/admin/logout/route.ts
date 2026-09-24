@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { clearAdminSession } from "@/lib/admin-auth";
+import { assertSameOrigin, clearAdminSession } from "@/lib/admin-auth";
 
-export async function POST(): Promise<never> {
+export async function POST(request: Request): Promise<never> {
+  assertSameOrigin(request);
   await clearAdminSession();
   redirect("/admin/login");
 }

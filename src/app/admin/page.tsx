@@ -1,13 +1,16 @@
 import { redirect } from "next/navigation";
 import { Plus, Save, ShieldCheck } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
-import { DELIVERY_METHOD_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/constants";
+import { DELIVERY_METHOD_LABELS, PAYMENT_METHOD_LABELS, SOURCE_TYPE_LABELS, VERIFICATION_STATUS_LABELS } from "@/lib/constants";
+import { getQuoteFreshnessStatus } from "@/lib/comparison/engine";
 import { getAdminDashboardData } from "@/lib/data/providers";
 import { formatDateTime, formatMoney, formatRate } from "@/lib/format";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 
 const deliveryMethods = ["bank_transfer", "cash_pickup", "wallet"] as const;
 const paymentMethods = ["bank_transfer", "debit_card", "cash"] as const;
+const sourceTypes = ["MANUAL", "API", "SCRAPER", "PARTNER_FEED", "OTHER"] as const;
+const verificationStatuses = ["UNVERIFIED", "MANUAL_REVIEWED", "PROVIDER_QUOTE", "FAILED"] as const;
 
 type AdminPageProps = {
   searchParams: Promise<{
@@ -42,6 +45,9 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
   ]);
   const statusMessage = getStatusMessage(status) ?? errorMessage;
   const canCreateQuote = Boolean(corridorId) && providers.length > 0;
+  const activeProviders = providers.filter((provider) => provider.isActive).length;
+  const staleQuotes = latestQuotes.filter((quote) => getQuoteFreshnessStatus(quote.timestamp) === "stale").length;
+  const freshQuotes = latestQuotes.filter((quote) => getQuoteFreshnessStatus(quote.timestamp) !== "stale").length;
 
   return (
     <main className="min-h-screen bg-paper">
@@ -66,6 +72,13 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
         {statusMessage ? (
           <p className="mt-6 rounded-md bg-amber-50 p-3 text-sm font-medium text-amber-800">{statusMessage}</p>
         ) : null}
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-4">
+          <AdminMetric label="Active providers" value={String(activeProviders)} />
+          <AdminMetric label="Fresh/recent quotes" value={String(freshQuotes)} />
+          <AdminMetric label="Stale quotes" value={String(staleQuotes)} />
+          <AdminMetric label="Active corridors" value={corridorId ? "1" : "0"} />
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
           <form action="/api/admin/providers" method="post" className="rounded-lg border border-line bg-white p-5 shadow-sm">
@@ -116,6 +129,7 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
                   ))}
                 </select>
               </label>
+              <TextField name="sendAmount" label="Send amount assumption (AED)" placeholder="1000.00" type="number" step="0.01" />
               <TextField name="baseFee" label="Base fee (AED)" placeholder="10.00" required type="number" step="0.01" />
               <TextField
                 name="exchangeRate"
@@ -132,6 +146,7 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
                 type="number"
                 step="0.0001"
               />
+              <TextField name="deliverySpeed" label="Delivery speed (optional)" placeholder="Minutes, same day, 1+ day" />
               <label className="grid gap-2">
                 <span className="text-sm font-medium text-slate-600">Delivery method</span>
                 <select name="deliveryMethod" required className="rounded-md border border-line px-3 py-3 outline-none">
@@ -152,6 +167,42 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
                   ))}
                 </select>
               </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-600">Source type</span>
+                <select name="sourceType" required className="rounded-md border border-line px-3 py-3 outline-none">
+                  {sourceTypes.map((sourceType) => (
+                    <option key={sourceType} value={sourceType}>
+                      {SOURCE_TYPE_LABELS[sourceType]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2">
+                <span className="text-sm font-medium text-slate-600">Verification status</span>
+                <select name="verificationStatus" required className="rounded-md border border-line px-3 py-3 outline-none">
+                  {verificationStatuses.map((verificationStatus) => (
+                    <option key={verificationStatus} value={verificationStatus}>
+                      {VERIFICATION_STATUS_LABELS[verificationStatus]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <TextField name="sourceReference" label="Source reference (optional)" placeholder="Provider page, admin note, quote ID" />
+              <TextField name="minimumAmount" label="Minimum amount (optional)" placeholder="500.00" type="number" step="0.01" />
+              <TextField name="maximumAmount" label="Maximum amount (optional)" placeholder="20000.00" type="number" step="0.01" />
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input name="isPromotional" type="checkbox" className="h-4 w-4 rounded border-line" />
+                Promotional quote
+              </label>
+              <label className="grid gap-2 sm:col-span-2">
+                <span className="text-sm font-medium text-slate-600">Notes (optional)</span>
+                <textarea
+                  name="notes"
+                  rows={3}
+                  className="rounded-md border border-line px-3 py-3 outline-none focus:ring-2 focus:ring-mint/30"
+                  placeholder="Limitations, source notes, or manual review context"
+                />
+              </label>
               <button
                 disabled={!canCreateQuote}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
@@ -168,11 +219,12 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
           <div className="mt-4 grid gap-3">
             {latestQuotes.length > 0 ? (
               latestQuotes.map((quote) => (
-                <div key={quote.id} className="grid gap-2 rounded-md border border-line p-3 sm:grid-cols-5 sm:items-center">
+                <div key={quote.id} className="grid gap-2 rounded-md border border-line p-3 sm:grid-cols-6 sm:items-center">
                   <p className="font-semibold text-ink">{quote.providerName}</p>
                   <p className="text-sm text-slate-600">{formatMoney(quote.baseFee, "AED")} fee</p>
                   <p className="text-sm text-slate-600">{formatRate(quote.exchangeRate)} INR</p>
                   <p className="text-sm text-slate-600">{DELIVERY_METHOD_LABELS[quote.deliveryMethod]}</p>
+                  <p className="text-sm text-slate-600">{getQuoteFreshnessStatus(quote.timestamp)}</p>
                   <p className="text-sm text-slate-500">{formatDateTime(quote.timestamp)}</p>
                 </div>
               ))
@@ -183,6 +235,15 @@ export default async function AdminPage(props: AdminPageProps): Promise<React.Re
         </section>
       </section>
     </main>
+  );
+}
+
+function AdminMetric({ label, value }: { label: string; value: string }): React.ReactElement {
+  return (
+    <div className="rounded-lg border border-line bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-ink">{value}</p>
+    </div>
   );
 }
 

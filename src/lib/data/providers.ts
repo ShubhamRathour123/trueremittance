@@ -20,6 +20,9 @@ export type AdminQuoteSummary = {
   midMarketRate: number | null;
   deliveryMethod: DeliveryMethod;
   paymentMethod: PaymentMethod;
+  deliverySpeed: string | null;
+  sourceType: string;
+  verificationStatus: string;
   timestamp: Date;
 };
 
@@ -59,10 +62,25 @@ export async function getLatestQuotesForMvpCorridor(): Promise<QuoteForCompariso
         providerName: quote.provider.name,
         providerSlug: quote.provider.slug,
         baseFee: quote.baseFee.toNumber(),
+        sendAmount: quote.sendAmount?.toNumber() ?? null,
+        sendCurrency: quote.sendCurrency,
+        receiveCurrency: quote.receiveCurrency,
+        feeCurrency: quote.feeCurrency,
         exchangeRate: quote.exchangeRate.toNumber(),
         midMarketRate: quote.midMarketRate?.toNumber() ?? null,
         deliveryMethod: quote.deliveryMethod,
         paymentMethod: quote.paymentMethod,
+        deliverySpeed: quote.deliverySpeed,
+        sourceType: quote.sourceType,
+        sourceReference: quote.sourceReference,
+        verificationStatus: quote.verificationStatus,
+        isPromotional: quote.isPromotional,
+        promotionExpiresAt: quote.promotionExpiresAt,
+        minimumAmount: quote.minimumAmount?.toNumber() ?? null,
+        maximumAmount: quote.maximumAmount?.toNumber() ?? null,
+        notes: quote.notes,
+        statusMessage: quote.statusMessage,
+        fetchedAt: quote.fetchedAt,
         timestamp: quote.timestamp
       });
     }
@@ -84,6 +102,28 @@ export async function getProviderForRedirect(slug: string): Promise<ProviderSumm
       websiteUrl: true,
       affiliateUrl: true,
       isActive: true
+    }
+  });
+}
+
+export async function recordAffiliateClick(input: {
+  providerId: string;
+  destination: string;
+  corridorSlug?: string;
+  amountBucket?: string;
+  placement?: string;
+  ranking?: number;
+  ctaType?: string;
+}): Promise<void> {
+  await prisma.affiliateClick.create({
+    data: {
+      providerId: input.providerId,
+      destination: input.destination,
+      corridorSlug: input.corridorSlug,
+      amountBucket: input.amountBucket,
+      placement: input.placement,
+      ranking: input.ranking,
+      ctaType: input.ctaType
     }
   });
 }
@@ -142,6 +182,9 @@ export async function getAdminDashboardData(): Promise<{
         midMarketRate: quote.midMarketRate?.toNumber() ?? null,
         deliveryMethod: quote.deliveryMethod,
         paymentMethod: quote.paymentMethod,
+        deliverySpeed: quote.deliverySpeed,
+        sourceType: quote.sourceType,
+        verificationStatus: quote.verificationStatus,
         timestamp: quote.timestamp
       })),
       errorMessage: null
