@@ -56,8 +56,22 @@ model Corridor {
   slug            String      @unique
   isActive        Boolean     @default(true)
   createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  updatedAt        DateTime    @updatedAt
   rateQuotes      RateQuote[]
+}
+
+model ReferenceRate {
+  id            String   @id @default(cuid())
+  baseCurrency  String
+  quoteCurrency String
+  rate          Decimal  @db.Decimal(18, 8)
+  source        String
+  sourceDate    DateTime
+  fetchedAt     DateTime @default(now())
+
+  @@unique([baseCurrency, quoteCurrency, source, sourceDate])
+  @@index([baseCurrency, quoteCurrency, sourceDate])
+  @@index([source, sourceDate])
 }
 
 model RateQuote {
